@@ -127,6 +127,8 @@ triggers:
   - trigger: state
     entity_id:
       - timer.your_fan_timer
+  - trigger: time_pattern
+    minutes: /1
 conditions: []
 actions:
   - action: mqtt.publish
