@@ -1,11 +1,19 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
+#define DISABLE_SERIAL
+
 #include <Arduino.h>
 #include <U8g2lib.h>
 #include <PubSubClient.h>
 
 #include <ESP8266WiFi.h>
+
+#ifdef DISABLE_SERIAL
+#define Serial \
+  if (0)       \
+  Serial
+#endif
 
 // Pin definitions
 #define BTN_DOWN 13
@@ -20,7 +28,9 @@ enum UIState
   STATE_FAN_MENU,
   STATE_FAN_SPEED,
   STATE_SCREEN_TIMEOUT,
-  STATE_TELEMETRY
+  STATE_TELEMETRY,
+  STATE_FAN_TIMER_HOUR,
+  STATE_FAN_TIMER_MINUTE
 };
 
 // Hardware
@@ -52,6 +62,8 @@ extern bool forceRedraw;
 // Temp adjustment variables
 extern int tempFanSpeed;
 extern int tempScreenTimeoutIndex;
+extern int tempFanTimerHour;
+extern int tempFanTimerMinute;
 
 // Telemetry
 extern int telemetryInterval;

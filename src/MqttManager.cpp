@@ -1,19 +1,15 @@
 #include "MqttManager.h"
-#include "Globals.h"
 #include <ArduinoJson.h>
 #include <time.h>
+#include "Globals.h"
 
 // ======== MQTT Topics ========
 String mqttClientId;
-String topicSensor;         // esp_monitor/<clientId>/sensor
-String topicState;          // esp_monitor/<clientId>/state
-String topicSync;           // esp_monitor/<clientId>/sync
-String topicCmnd;           // esp_monitor/<clientId>/command/# (subscribe)
-String topicCmndPower;      // esp_monitor/<clientId>/command/power
-String topicCmndFanSpeed;   // esp_monitor/<clientId>/command/fanspeed
-String topicCmndOscillate;  // esp_monitor/<clientId>/command/oscillate
-String topicCmndTimer;      // esp_monitor/<clientId>/command/timer
-String topicCmndState;      // esp_monitor/<clientId>/command/state
+String topicSensor;        // esp_monitor/<clientId>/sensor
+String topicState;         // esp_monitor/<clientId>/state
+String topicSync;          // esp_monitor/<clientId>/sync
+String topicCmnd;          // esp_monitor/<clientId>/command/# (subscribe)
+String topicCmndState;     // esp_monitor/<clientId>/command/state
 
 // ======== Topic Initialization ========
 
@@ -25,15 +21,11 @@ void initMqttTopics()
   mqttClientId = String(idBuf);
 
   String base = "esp_monitor/" + mqttClientId;
-  topicSensor       = base + "/sensor";
-  topicState        = base + "/state";
-  topicSync         = base + "/sync";
-  topicCmnd         = base + "/command/#";
-  topicCmndPower    = base + "/command/power";
-  topicCmndFanSpeed = base + "/command/fanspeed";
-  topicCmndOscillate= base + "/command/oscillate";
-  topicCmndTimer    = base + "/command/timer";
-  topicCmndState    = base + "/command/state";
+  topicSensor = base + "/sensor";
+  topicState = base + "/state";
+  topicSync = base + "/sync";
+  topicCmnd = base + "/command/#";
+  topicCmndState = base + "/command/state";
 
   Serial.print("[MQTT] Client ID: ");
   Serial.println(mqttClientId);
@@ -45,6 +37,9 @@ void publishFanState()
 {
   if (!mqttClient.connected())
     return;
+  if (!fanPower) {
+    fanTimer = 0;
+  }
 
   JsonDocument doc;
   doc["POWER"] = fanPower ? "ON" : "OFF";
@@ -101,7 +96,8 @@ void publishHADiscovery()
   // Shared device info for all sensors
   // We'll build each config individually to keep stack usage reasonable
 
-  struct SensorConfig {
+  struct SensorConfig
+  {
     const char *id_suffix;
     const char *name;
     const char *device_class;
@@ -110,10 +106,9 @@ void publishHADiscovery()
   };
 
   SensorConfig sensors[] = {
-    {"temperature", "Temperature", "temperature", "°C", "{{ value_json.AHT2X.Temperature }}"},
-    {"humidity",    "Humidity",    "humidity",    "%",  "{{ value_json.AHT2X.Humidity }}"},
-    {"dew_point",   "Dew Point",  "temperature", "°C", "{{ value_json.AHT2X.DewPoint }}"}
-  };
+      {"temperature", "Temperature", "temperature", "°C", "{{ value_json.AHT2X.Temperature }}"},
+      {"humidity", "Humidity", "humidity", "%", "{{ value_json.AHT2X.Humidity }}"},
+      {"dew_point", "Dew Point", "temperature", "°C", "{{ value_json.AHT2X.DewPoint }}"}};
 
   for (int i = 0; i < 3; i++)
   {
@@ -170,53 +165,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
   Serial.print(": ");
   Serial.println(msg);
 
-  if (topicStr == topicCmndPower)
-  {
-    String cmd = String(msg);
-    cmd.toUpperCase();
-    if (cmd == "ON")
-      fanPower = true;
-    else if (cmd == "OFF")
-      fanPower = false;
-    else if (cmd == "TOGGLE")
-      fanPower = !fanPower;
-
-    forceRedraw = true;
-  }
-  else if (topicStr == topicCmndFanSpeed)
-  {
-    int spd = atoi(msg);
-    if (spd >= 1 && spd <= 3)
-    {
-      fanSpeed = spd;
-
-      forceRedraw = true;
-    }
-  }
-  else if (topicStr == topicCmndOscillate)
-  {
-    String cmd = String(msg);
-    cmd.toUpperCase();
-    if (cmd == "ON")
-      fanOscillate = true;
-    else if (cmd == "OFF")
-      fanOscillate = false;
-    else if (cmd == "TOGGLE")
-      fanOscillate = !fanOscillate;
-
-    forceRedraw = true;
-  }
-  else if (topicStr == topicCmndTimer)
-  {
-    int t = atoi(msg);
-    if (t == 0 || t == 30 || t == 60 || t == 120)
-    {
-      fanTimer = t;
-
-      forceRedraw = true;
-    }
-  }
-  else if (topicStr == topicCmndState)
+  if (topicStr == topicCmndState)
   {
     // Sync full state from Home Assistant
     JsonDocument doc;
@@ -242,7 +191,9 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
       if (doc["Timer"].is<int>())
       {
         int t = doc["Timer"].as<int>();
-        if (t == 0 || t == 30 || t == 60 || t == 120)
+        if (t == -1)
+          fanTimer = 0;
+        else if (t >= 0)
           fanTimer = t;
       }
 

@@ -1,4 +1,3 @@
-#include "Globals.h"
 #include "MqttManager.h"
 #include "Display.h"
 #include "InputHandler.h"
@@ -7,6 +6,7 @@
 #include <math.h>
 #include <Adafruit_AHTX0.h>
 #include <time.h>
+#include "Globals.h"
 
 // ======== Hardware ========
 Adafruit_AHTX0 aht;
@@ -38,6 +38,7 @@ bool apToggleState = false;
 // ======== Timing ========
 unsigned long lastInteractionTime = 0;
 const unsigned long MENU_TIMEOUT = 5000;
+const unsigned long OVERLAY_TIMEOUT = 3000;
 unsigned long lastGlobalActivityTime = 0;
 unsigned long lastReadTime = 0;
 unsigned long lastTelemetryTime = 0;
@@ -46,9 +47,15 @@ unsigned long lastTelemetryTime = 0;
 bool isScreenOn = true;
 bool forceRedraw = true;
 
+// ======== MQTT Dynamic Subscription ========
+bool isMqttListening = false;
+unsigned long lastFanMenuTime = 0;
+
 // ======== Temp Adjustment ========
 int tempFanSpeed = 1;
 int tempScreenTimeoutIndex = 0;
+int tempFanTimerHour = 0;
+int tempFanTimerMinute = 0;
 
 // ======== Telemetry ========
 int telemetryInterval = 30;
@@ -152,6 +159,11 @@ void loop()
   }
 
   // --- MQTT reconnect ---
+  if (!mqttClient.connected())
+  {
+    isMqttListening = false;
+  }
+
   if (mqttToggleState && WiFi.status() == WL_CONNECTED && !mqttClient.connected())
   {
     if (now - lastMqttReconnect >= MQTT_RECONNECT_INTERVAL)
@@ -172,10 +184,6 @@ void loop()
       if (connected)
       {
         Serial.println("[MQTT] Connected");
-        // Subscribe to command topic wildcard
-        mqttClient.subscribe(topicCmnd.c_str());
-        Serial.print("[MQTT] Subscribed to ");
-        Serial.println(topicCmnd);
         // Publish Home Assistant Auto Discovery configs
         publishHADiscovery();
         // Request state sync from Home Assistant
@@ -228,16 +236,40 @@ void loop()
   // --- Service AP web server if running ---
   handleAPClient();
 
-  // --- Menu timeout ---
+  // --- Menu / Overlay timeout ---
   // Re-read millis() to avoid unsigned underflow: handleInput() may have set
   // lastInteractionTime to a millis() value newer than the `now` captured above.
   now = millis();
   if (currentState != STATE_MAIN)
   {
-    if (now - lastInteractionTime > MENU_TIMEOUT)
+    // Overlay screens: 3-second timeout -> cancel edits, return to parent menu
+    if (currentState == STATE_FAN_SPEED ||
+        currentState == STATE_FAN_TIMER_HOUR ||
+        currentState == STATE_FAN_TIMER_MINUTE)
     {
-      currentState = STATE_MAIN;
-      forceRedraw = true;
+      if (now - lastInteractionTime > OVERLAY_TIMEOUT)
+      {
+        currentState = STATE_FAN_MENU;
+        forceRedraw = true;
+      }
+    }
+    else if (currentState == STATE_SCREEN_TIMEOUT ||
+             currentState == STATE_TELEMETRY)
+    {
+      if (now - lastInteractionTime > OVERLAY_TIMEOUT)
+      {
+        currentState = STATE_MAIN_MENU;
+        forceRedraw = true;
+      }
+    }
+    // Regular menu screens: 5-second timeout -> return to main screen
+    else
+    {
+      if (now - lastInteractionTime > MENU_TIMEOUT)
+      {
+        currentState = STATE_MAIN;
+        forceRedraw = true;
+      }
     }
   }
 
@@ -250,6 +282,35 @@ void loop()
       isScreenOn = false;
       u8g2.setPowerSave(1);
       currentState = STATE_MAIN; // Return to main screen when screen turns off
+    }
+  }
+
+  // --- MQTT Dynamic Subscription ---
+  if (mqttClient.connected())
+  {
+    bool inFanMenu = (currentState == STATE_FAN_MENU ||
+                      currentState == STATE_FAN_SPEED ||
+                      currentState == STATE_FAN_TIMER_HOUR ||
+                      currentState == STATE_FAN_TIMER_MINUTE);
+
+    if (inFanMenu)
+    {
+      lastFanMenuTime = millis();
+      if (!isMqttListening)
+      {
+        mqttClient.subscribe(topicCmnd.c_str());
+        Serial.println("[MQTT] Subscribed to commands");
+        isMqttListening = true;
+      }
+    }
+    else
+    {
+      if (isMqttListening && (millis() - lastFanMenuTime > 5000))
+      {
+        mqttClient.unsubscribe(topicCmnd.c_str());
+        Serial.println("[MQTT] Unsubscribed from commands");
+        isMqttListening = false;
+      }
     }
   }
 
@@ -284,6 +345,11 @@ void loop()
     case STATE_TELEMETRY:
       drawMainMenu();
       drawTelemetryAdjust();
+      break;
+    case STATE_FAN_TIMER_HOUR:
+    case STATE_FAN_TIMER_MINUTE:
+      drawFanMenu();
+      drawFanTimerAdjust();
       break;
     }
 

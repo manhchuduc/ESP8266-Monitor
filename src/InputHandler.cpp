@@ -1,7 +1,7 @@
 #include "InputHandler.h"
-#include "Globals.h"
 #include "MqttManager.h"
 #include "ConfigPortal.h"
+#include "Globals.h"
 
 // ======== Button System with Double Click ========
 struct Button
@@ -231,24 +231,23 @@ void handleInput()
         publishFanState();
         break;
       case 1: // Chỉnh số -> open speed adjust overlay
-        tempFanSpeed = fanSpeed;
-        currentState = STATE_FAN_SPEED;
+        if (fanPower) {
+          tempFanSpeed = fanSpeed;
+          currentState = STATE_FAN_SPEED;
+        }
         break;
       case 2: // Quay
-        fanOscillate = !fanOscillate;
-        publishFanState();
+        if (fanPower) {
+          fanOscillate = !fanOscillate;
+          publishFanState();
+        }
         break;
-      case 3: // Hẹn giờ -> cycle through preset times
-        // Cycle: 0 -> 30 -> 60 -> 120 -> 0
-        if (fanTimer == 0)
-          fanTimer = 30;
-        else if (fanTimer == 30)
-          fanTimer = 60;
-        else if (fanTimer == 60)
-          fanTimer = 120;
-        else
-          fanTimer = 0;
-        publishFanState();
+      case 3: // Hẹn giờ -> open timer adjust overlay
+        if (fanPower) {
+          tempFanTimerHour = fanTimer / 60;
+          tempFanTimerMinute = fanTimer % 60;
+          currentState = STATE_FAN_TIMER_HOUR;
+        }
         break;
       }
     }
@@ -336,6 +335,60 @@ void handleInput()
     if (okDoubleClicked)
     {
       currentState = STATE_MAIN_MENU;
+      forceRedraw = true;
+    }
+    break;
+
+  case STATE_FAN_TIMER_HOUR:
+    if (upPressed)
+    {
+      if (tempFanTimerHour < 15)
+        tempFanTimerHour++;
+    }
+    if (downPressed)
+    {
+      if (tempFanTimerHour > 0)
+        tempFanTimerHour--;
+    }
+    if (okSingleClicked)
+    {
+      // Confirm hour, move to minute adjustment
+      currentState = STATE_FAN_TIMER_MINUTE;
+      forceRedraw = true;
+    }
+    if (okDoubleClicked)
+    {
+      // Cancel and go back
+      currentState = STATE_FAN_MENU;
+      forceRedraw = true;
+    }
+    break;
+
+  case STATE_FAN_TIMER_MINUTE:
+    if (upPressed)
+    {
+      tempFanTimerMinute += 15;
+      if (tempFanTimerMinute > 45)
+        tempFanTimerMinute = 0;
+    }
+    if (downPressed)
+    {
+      tempFanTimerMinute -= 15;
+      if (tempFanTimerMinute < 0)
+        tempFanTimerMinute = 45;
+    }
+    if (okSingleClicked)
+    {
+      // Save total minutes and publish
+      fanTimer = tempFanTimerHour * 60 + tempFanTimerMinute;
+      publishFanState();
+      currentState = STATE_FAN_MENU;
+      forceRedraw = true;
+    }
+    if (okDoubleClicked)
+    {
+      // Cancel and go back
+      currentState = STATE_FAN_MENU;
       forceRedraw = true;
     }
     break;

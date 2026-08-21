@@ -10,5 +10,6 @@ void drawFanMenu();
 void drawFanSpeedAdjust();
 void drawScreenTimeoutAdjust();
 void drawTelemetryAdjust();
+void drawFanTimerAdjust();
 
 #endif // DISPLAY_H

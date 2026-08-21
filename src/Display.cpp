@@ -1,6 +1,6 @@
 #include "Display.h"
-#include "Globals.h"
 #include <time.h>
+#include "Globals.h"
 
 // ======== Utility Functions ========
 
@@ -229,7 +229,16 @@ void drawFanMenu()
   String timerStr = "";
   if (fanTimer > 0)
   {
-    timerStr = String(fanTimer) + "p";
+    int h = fanTimer / 60;
+    int m = fanTimer % 60;
+    if (h > 0)
+      timerStr += String(h) + "h";
+    if (m > 0)
+      timerStr += String(m) + "p";
+    if (h > 0 && m == 0)
+    {
+      // Already has "Xh", no need to add more
+    }
   }
 
   const char *rightTexts[4];
@@ -368,6 +377,51 @@ void drawTelemetryAdjust()
   int valW = u8g2.getUTF8Width(valStr.c_str());
   u8g2.setCursor(boxX + (boxW - valW) / 2, boxY + 32);
   u8g2.print(valStr);
+
+  // Restore font
+  u8g2.setFont(u8g2_font_unifont_t_vietnamese1);
+}
+
+void drawFanTimerAdjust()
+{
+  int boxW = 80;
+  int boxH = 40;
+  int boxX = (128 - boxW) / 2;
+  int boxY = (64 - boxH) / 2;
+
+  // Clear the box area
+  u8g2.setDrawColor(0);
+  u8g2.drawBox(boxX + 1, boxY + 1, boxW - 2, boxH - 2);
+  u8g2.setDrawColor(1);
+
+  // Draw border
+  u8g2.drawFrame(boxX, boxY, boxW, boxH);
+
+  // Draw title
+  u8g2.setFont(u8g2_font_6x12_tr);
+  const char *title = "Hen gio";
+  int titleW = u8g2.getStrWidth(title);
+  u8g2.setCursor(boxX + (boxW - titleW) / 2, boxY + 12);
+  u8g2.print(title);
+
+  // Draw value with active field highlighted
+  u8g2.setFont(u8g2_font_unifont_t_vietnamese1);
+
+  String timerValStr;
+  if (currentState == STATE_FAN_TIMER_HOUR)
+  {
+    // Highlight hour: >Xh< Yp
+    timerValStr = ">" + String(tempFanTimerHour) + "h< " + String(tempFanTimerMinute) + "p";
+  }
+  else
+  {
+    // Highlight minute: Xh >Yp<
+    timerValStr = String(tempFanTimerHour) + "h >" + String(tempFanTimerMinute) + "p<";
+  }
+
+  int timerValW = u8g2.getUTF8Width(timerValStr.c_str());
+  u8g2.setCursor(boxX + (boxW - timerValW) / 2, boxY + 32);
+  u8g2.print(timerValStr);
 
   // Restore font
   u8g2.setFont(u8g2_font_unifont_t_vietnamese1);
