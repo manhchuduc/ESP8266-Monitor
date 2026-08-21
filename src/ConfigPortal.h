@@ -10,6 +10,9 @@ struct NetConfig {
   String mqtt_server;
   String mqtt_user;
   String mqtt_pass;
+  bool mqtt_toggle = false;
+  int telemetry_interval = 30;
+  int screen_timeout_idx = 0;
 };
 
 extern NetConfig netConfig;

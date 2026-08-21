@@ -1,17 +1,10 @@
 #include "ConfigPortal.h"
 #include <ArduinoJson.h>
 
-#if defined(ESP8266)
-  #include <ESP8266WiFi.h>
-  #include <ESP8266WebServer.h>
-  #include <LittleFS.h>
-  ESP8266WebServer server(80);
-#elif defined(ESP32)
-  #include <WiFi.h>
-  #include <WebServer.h>
-  #include <LittleFS.h>
-  WebServer server(80);
-#endif
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <LittleFS.h>
+ESP8266WebServer server(80);
 
 NetConfig netConfig;
 bool apRunning = false;
@@ -161,6 +154,9 @@ void loadConfig() {
   netConfig.mqtt_server  = doc["mqtt_server"]  | "";
   netConfig.mqtt_user    = doc["mqtt_user"]    | "";
   netConfig.mqtt_pass    = doc["mqtt_pass"]    | "";
+  netConfig.mqtt_toggle  = doc["mqtt_toggle"]  | false;
+  netConfig.telemetry_interval = doc["telemetry_interval"] | 30;
+  netConfig.screen_timeout_idx = doc["screen_timeout_idx"] | 0;
 
   Serial.println("[ConfigPortal] Config loaded");
 }
@@ -172,6 +168,9 @@ void saveConfig() {
   doc["mqtt_server"]  = netConfig.mqtt_server;
   doc["mqtt_user"]    = netConfig.mqtt_user;
   doc["mqtt_pass"]    = netConfig.mqtt_pass;
+  doc["mqtt_toggle"]  = netConfig.mqtt_toggle;
+  doc["telemetry_interval"] = netConfig.telemetry_interval;
+  doc["screen_timeout_idx"] = netConfig.screen_timeout_idx;
 
   File f = LittleFS.open(CONFIG_FILE, "w");
   if (!f) {
