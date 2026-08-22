@@ -1,15 +1,16 @@
 # ESP8266 Monitor
 
-Một thiết bị IoT (bảng điều khiển thu nhỏ) dựa trên ESP8266 dùng để theo dõi môi trường và điều khiển quạt thông minh trong nhà. Thiết bị được trang bị màn hình OLED, hệ thống nút bấm vật lý và đóng vai trò như một remote điều khiển hai chiều kết nối với Home Assistant thông qua giao thức MQTT.
+**ESP8266 Monitor** là một dự án mã nguồn mở dựa trên ESP8266, kết hợp chức năng theo dõi thông số môi trường và đóng vai trò như một bảng điều khiển vật lý cho Home Assistant thông qua giao thức MQTT.
 
-## Tính năng
+Dự án sử dụng màn hình OLED và nút bấm để hiển thị thông số cảm biến tại chỗ, đồng thời cho phép gửi lệnh điều khiển hai chiều tới các thiết bị đã được kết nối trong Home Assistant (ví dụ: quạt thông minh).
 
-- **Theo dõi môi trường (Cảm biến tại chỗ):** Đo nhiệt độ và độ ẩm sử dụng cảm biến AHT10/AHT20, tính toán thêm thông số điểm sương (dew point). Các thông số này hỗ trợ Auto-Discovery để HA tự động nhận diện.
-- **Giao diện hiển thị:** Màn hình OLED 128x64 (SSD1306) kết hợp hệ thống menu trực quan thao tác bằng 3 nút bấm vật lý (UP, DOWN, OK).
-- **Bảng điều khiển quạt từ xa:** Đóng vai trò là một "bảng điều khiển" (Remote) cho một thiết bị quạt (hoặc bất kỳ thiết bị nào) đã có sẵn trên Home Assistant. ESP gửi lệnh chỉnh Bật/Tắt, Tốc độ, Xoay, Hẹn giờ lên MQTT, và Home Assistant sẽ đọc để điều khiển quạt thật.
-- **Đồng bộ trạng thái 2 chiều:** ESP có khả năng đồng bộ trạng thái thực tế của quạt từ Home Assistant (ví dụ: khi bạn bật quạt bằng điện thoại, màn hình ESP cũng sẽ cập nhật theo). Đặc biệt, khi ESP khởi động lại hoặc mất kết nối, nó sẽ chủ động gửi yêu cầu (Sync Request) để HA trả về trạng thái mới nhất.
-- **Cấu hình qua Web Portal:** Trang web Access Point tích hợp sẵn ở lần khởi động đầu tiên để cài đặt mạng WiFi và MQTT. Các thông số được lưu trên LittleFS.
-- **Đồng bộ thời gian NTP:** Tự động lấy giờ Internet để hiển thị thời gian thực lên màn hình.
+## Các tính năng chính
+
+- **Theo dõi môi trường:** Đo nhiệt độ, độ ẩm qua cảm biến AHT10/AHT20 và tính toán điểm sương (dew point). Dữ liệu hỗ trợ chuẩn MQTT Auto-Discovery để Home Assistant tự động nhận diện.
+- **Bảng điều khiển từ xa (Remote):** Cung cấp giao diện vật lý điều khiển thiết bị (Bật/Tắt, chỉnh tốc độ, xoay, và hẹn giờ) thông qua hệ thống menu hiển thị trên màn hình OLED (SSD1306) với 3 nút bấm (UP, DOWN, OK).
+- **Đồng bộ trạng thái hai chiều:** Trạng thái thiết bị hiển thị trên màn hình được đồng bộ theo thời gian thực với Home Assistant. Mạch sẽ tự động gửi yêu cầu đồng bộ (Sync Request) mỗi khi khởi động lại hoặc sau khi kết nối lại MQTT.
+- **Web Portal cấu hình:** Hỗ trợ chế độ Access Point ở lần khởi động đầu tiên để thiết lập kết nối WiFi và thông số MQTT Broker. Dữ liệu cấu hình được lưu cục bộ trên LittleFS.
+- **Đồng bộ thời gian:** Tự động lấy và cập nhật thời gian từ máy chủ NTP để hiển thị trên giao diện.
 
 ## Yêu cầu phần cứng
 
@@ -86,16 +87,18 @@ actions:
   - choose:
       - conditions:
           - condition: template
-            value_template: "{{ trigger.payload_json.Timer | int(0) > 0 }}"
+            value_template: "{{ trigger.payload_json.Timer | int(-1) > as_timestamp(now()) }}"
         sequence:
           - action: timer.start
             target:
               entity_id: timer.your_fan_timer
             data:
-              duration: "{{ trigger.payload_json.Timer | int(0) * 60 }}"
+              duration: >-
+                {{ (trigger.payload_json.Timer | int - as_timestamp(now()) |
+                int) }}
       - conditions:
           - condition: template
-            value_template: "{{ trigger.payload_json.Timer | int(0) == 0 }}"
+            value_template: "{{ trigger.payload_json.Timer | int(-1) == -1 }}"
         sequence:
           - action: timer.cancel
             target:
@@ -139,12 +142,11 @@ actions:
         {% set pct = state_attr('fan.your_fan_entity', 'percentage') | int(0) %}
         {% set speed = 1 if pct <= 34 else (2 if pct <= 67 else 3) %}
 
-        {% set timer_minutes = 0 %}
+        {% set timer_epoch = -1 %}
         {% if is_state('timer.your_fan_timer', 'active') %}
           {% set end_time = state_attr('timer.your_fan_timer', 'finishes_at') %}
           {% if end_time %}
-            {% set seconds = (as_timestamp(end_time) - as_timestamp(now())) | int(0) %}
-            {% set timer_minutes = (seconds / 60) | int(0) %}
+            {% set timer_epoch = as_timestamp(end_time) | int(-1) %}
           {% endif %}
         {% endif %}
 
@@ -153,7 +155,7 @@ actions:
             "POWER": "ON" if is_state('fan.your_fan_entity', 'on') else "OFF",
             "FanSpeed": speed,
             "Oscillate": "ON" if state_attr('fan.your_fan_entity', 'oscillating') else "OFF",
-            "Timer": timer_minutes if timer_minutes > 0 else -1
+            "Timer": timer_epoch
           } | tojson
         }}
 ```

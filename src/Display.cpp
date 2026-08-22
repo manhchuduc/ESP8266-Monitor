@@ -226,19 +226,21 @@ void drawFanMenu()
   const char *fanPowerStr = fanPower ? "Bật" : "Tắt";
   String fanSpeedStr = String(fanSpeed);
   const char *fanOscStr = fanOscillate ? "Bật" : "Tắt";
-  String timerStr = "";
-  if (fanTimer > 0)
+  String timerStr = "Ko";
+  if (fanTimer > 0 && ntpSynced && fanTimer > time(nullptr))
   {
-    int h = fanTimer / 60;
-    int m = fanTimer % 60;
+    timerStr = "";
+    int remainingMin = (fanTimer - time(nullptr)) / 60;
+    int h = remainingMin / 60;
+    int m = remainingMin % 60;
     if (h > 0)
       timerStr += String(h) + "h";
     if (m > 0)
       timerStr += String(m) + "p";
-    if (h > 0 && m == 0)
-    {
-      // Already has "Xh", no need to add more
-    }
+    
+    // Nếu cả h và m đều 0 (còn dưới 1 phút)
+    if (h == 0 && m == 0)
+      timerStr = "0p";
   }
 
   const char *rightTexts[4];

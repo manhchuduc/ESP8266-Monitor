@@ -45,7 +45,7 @@ void publishFanState()
   doc["POWER"] = fanPower ? "ON" : "OFF";
   doc["FanSpeed"] = fanSpeed;
   doc["Oscillate"] = fanOscillate ? "ON" : "OFF";
-  doc["Timer"] = fanTimer;
+  doc["Timer"] = (long)fanTimer;
 
   char buf[128];
   serializeJson(doc, buf, sizeof(buf));
@@ -188,13 +188,13 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
         String o = doc["Oscillate"].as<String>();
         fanOscillate = (o == "ON");
       }
-      if (doc["Timer"].is<int>())
+      if (doc["Timer"].is<long>())
       {
-        int t = doc["Timer"].as<int>();
-        if (t == -1)
+        long t = doc["Timer"].as<long>();
+        if (t <= 0)
           fanTimer = 0;
-        else if (t >= 0)
-          fanTimer = t;
+        else
+          fanTimer = (time_t)t;
       }
 
       forceRedraw = true;

@@ -2,6 +2,7 @@
 #include "MqttManager.h"
 #include "ConfigPortal.h"
 #include "Globals.h"
+#include <time.h>
 
 // ======== Button System with Double Click ========
 struct Button
@@ -25,6 +26,7 @@ static unsigned long okFirstPressTime = 0;
 static bool okWaitingSecondPress = false;
 static bool okDoubleClicked = false;
 static bool okSingleClicked = false;
+static bool okLongPressed = false;
 static const unsigned long DOUBLE_CLICK_WINDOW = 300;
 
 void initButtons()
@@ -72,13 +74,16 @@ void processButtons()
     btns[i].lastReading = currentReading;
   }
 
-  // ---- Double-click detection for OK ----
+  // ---- Double-click and Long-press detection for OK ----
   okDoubleClicked = false;
   okSingleClicked = false;
+  okLongPressed = false;
+  static bool okLongPressHandled = false;
   unsigned long now = millis();
 
   if (btns[2].pressed) // OK pressed
   {
+    okLongPressHandled = false;
     if (okWaitingSecondPress && (now - okFirstPressTime < DOUBLE_CLICK_WINDOW))
     {
       // Second press within window -> double click
@@ -93,12 +98,37 @@ void processButtons()
     }
   }
 
-  // Check if single-click window expired
-  if (okWaitingSecondPress && (now - okFirstPressTime >= DOUBLE_CLICK_WINDOW))
+  // Handle Long press (3 seconds)
+  if (btns[2].state == LOW && okWaitingSecondPress && !okLongPressHandled)
+  {
+    if (now - okFirstPressTime >= 3000)
+    {
+      okLongPressed = true;
+      okLongPressHandled = true;
+      okWaitingSecondPress = false; // Cancel single click expectation
+    }
+  }
+
+  static bool okLastState = HIGH;
+  
+  // Check if button is released after the window expired but before 3s
+  if (btns[2].state == HIGH && okLastState == LOW)
+  {
+    if (okWaitingSecondPress && (now - okFirstPressTime >= DOUBLE_CLICK_WINDOW))
+    {
+      okSingleClicked = true;
+      okWaitingSecondPress = false;
+    }
+  }
+
+  // Check if single-click window expired and button already released
+  if (okWaitingSecondPress && (now - okFirstPressTime >= DOUBLE_CLICK_WINDOW) && btns[2].state == HIGH)
   {
     okSingleClicked = true;
     okWaitingSecondPress = false;
   }
+
+  okLastState = btns[2].state;
 }
 
 void handleInput()
@@ -106,7 +136,7 @@ void handleInput()
   bool upPressed = btns[1].pressed;
   bool downPressed = btns[0].pressed;
   bool okPressed = btns[2].pressed;
-  bool anyAction = upPressed || downPressed || okPressed || okSingleClicked || okDoubleClicked;
+  bool anyAction = upPressed || downPressed || okPressed || okSingleClicked || okDoubleClicked || okLongPressed;
 
   if (anyAction)
   {
@@ -244,11 +274,27 @@ void handleInput()
         break;
       case 3: // Hẹn giờ -> open timer adjust overlay
         if (fanPower) {
-          tempFanTimerHour = fanTimer / 60;
-          tempFanTimerMinute = fanTimer % 60;
+          if (fanTimer > 0 && ntpSynced && fanTimer > time(nullptr)) {
+            int remainingMin = (fanTimer - time(nullptr)) / 60;
+            tempFanTimerHour = remainingMin / 60;
+            tempFanTimerMinute = remainingMin % 60;
+          } else {
+            tempFanTimerHour = 0;
+            tempFanTimerMinute = 0;
+          }
           currentState = STATE_FAN_TIMER_HOUR;
         }
         break;
+      }
+    }
+    if (okLongPressed)
+    {
+      if (fanMenuIndex == 3) // Hẹn giờ
+      {
+        fanTimer = -1; // Gửi -1 lên MQTT
+        publishFanState();
+        fanTimer = 0;  // Reset locally
+        forceRedraw = true;
       }
     }
     if (okDoubleClicked)
@@ -379,9 +425,16 @@ void handleInput()
     }
     if (okSingleClicked)
     {
-      // Save total minutes and publish
-      fanTimer = tempFanTimerHour * 60 + tempFanTimerMinute;
-      publishFanState();
+      // Save completion time and publish
+      long totalSeconds = tempFanTimerHour * 3600 + tempFanTimerMinute * 60;
+      if (totalSeconds > 0 && ntpSynced) {
+        fanTimer = time(nullptr) + totalSeconds;
+        publishFanState();
+      } else {
+        fanTimer = -1; // Gửi -1 lên MQTT để báo xóa hẹn giờ
+        publishFanState();
+        fanTimer = 0;  // Reset locally
+      }
       currentState = STATE_FAN_MENU;
       forceRedraw = true;
     }

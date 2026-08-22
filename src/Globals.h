@@ -47,7 +47,7 @@ extern int screenTimeoutIndex;
 extern bool fanPower;
 extern int fanSpeed;
 extern bool fanOscillate;
-extern int fanTimer;
+extern time_t fanTimer;
 
 // Toggle states
 extern bool mqttToggleState;

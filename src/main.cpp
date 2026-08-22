@@ -29,7 +29,7 @@ int screenTimeoutIndex = 0;
 bool fanPower = false;
 int fanSpeed = 1; // 1-3
 bool fanOscillate = false;
-int fanTimer = 0; // minutes, 0 = off
+time_t fanTimer = 0; // Epoch timestamp of completion time, 0 = off
 
 // ======== Toggle States ========
 bool mqttToggleState = false;
@@ -226,6 +226,18 @@ void loop()
     if (currentState == STATE_MAIN)
     {
       forceRedraw = true;
+    }
+
+    // --- Fan Timer Auto-off Logic ---
+    if (fanTimer > 0 && ntpSynced)
+    {
+      if (time(nullptr) >= fanTimer)
+      {
+        fanTimer = 0;
+        fanPower = false;
+        publishFanState();
+        forceRedraw = true;
+      }
     }
   }
 
