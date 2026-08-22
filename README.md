@@ -21,15 +21,15 @@ Dự án sử dụng màn hình OLED và nút bấm để hiển thị thông s�
 
 ## Sơ đồ chân cắm
 
-| Linh kiện | Chân (Wemos D1 Mini) | GPIO | Ghi chú |
-| :--- | :--- | :--- | :--- |
-| **I2C SDA (OLED & AHT)** | D2 | GPIO4 | I2C mặc định |
-| **I2C SCL (OLED & AHT)** | D1 | GPIO5 | I2C mặc định |
-| **Nút UP** | D3 | GPIO0 | Kích hoạt mức thấp (Kéo xuống GND) |
-| **Nút DOWN** | D7 | GPIO13 | Kích hoạt mức thấp (Kéo xuống GND) |
-| **Nút OK** | D4 | GPIO2 | Kích hoạt mức thấp (Kéo xuống GND) |
+| Linh kiện                | Chân (Wemos D1 Mini) | GPIO   | Ghi chú                            |
+| :----------------------- | :------------------- | :----- | :--------------------------------- |
+| **I2C SDA (OLED & AHT)** | D2                   | GPIO4  | I2C mặc định                       |
+| **I2C SCL (OLED & AHT)** | D1                   | GPIO5  | I2C mặc định                       |
+| **Nút UP**               | D3                   | GPIO0  | Kích hoạt mức thấp (Kéo xuống GND) |
+| **Nút DOWN**             | D7                   | GPIO13 | Kích hoạt mức thấp (Kéo xuống GND) |
+| **Nút OK**               | D4                   | GPIO2  | Kích hoạt mức thấp (Kéo xuống GND) |
 
-*(Xem file `src/Globals.h` để biết chi tiết khai báo và thay đổi nếu cần)*
+_(Xem file `src/Globals.h` để biết chi tiết khai báo và thay đổi nếu cần)_
 
 ## Hướng dẫn cài đặt
 
@@ -46,6 +46,7 @@ Trong dự án này, ESP **không gắn trực tiếp với quạt vật lý** m
 **Lưu ý:** Thay `esp_monitor_XXXXXX` bằng Client ID thực tế của bạn (xem qua Serial log hoặc MQTT Explorer, thường là `esp_monitor_` + mã chip ESP).
 
 ### 1. Automation: ESP gửi lệnh điều khiển Quạt trên HA (CẤU HÌNH MẪU)
+
 Khi bạn thao tác trên màn hình ESP, thiết bị sẽ gửi toàn bộ trạng thái (dưới dạng JSON) lên topic `.../state`. Automation này nhận JSON đó, phân tích và điều khiển các thực thể tương ứng (quạt, hẹn giờ) trên HA.
 
 > **ĐÂY LÀ CẤU HÌNH MẪU**: Bạn cần thay thế `esp_monitor_XXXXXX` bằng Client ID của bạn, và đổi `fan.your_fan_entity`, `timer.your_fan_timer` cho khớp với thiết bị thực tế.
@@ -108,7 +109,9 @@ mode: queued
 ```
 
 ### 2. Automation: Đồng bộ trạng thái từ HA về ESP (CẤU HÌNH MẪU)
+
 Automation này sẽ bao gồm cả hai nhiệm vụ:
+
 - Phản hồi khi ESP yêu cầu đồng bộ (Sync Request lúc mới khởi động).
 - Chủ động cập nhật ESP khi Quạt hoặc Hẹn giờ bị đổi trạng thái từ nơi khác (App, Remote).
 
@@ -130,8 +133,6 @@ triggers:
   - trigger: state
     entity_id:
       - timer.your_fan_timer
-  - trigger: time_pattern
-    minutes: /1
 conditions: []
 actions:
   - action: mqtt.publish
